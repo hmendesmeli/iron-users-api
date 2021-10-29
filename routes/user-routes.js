@@ -1,5 +1,6 @@
 const express = require('express');
 
+const User = require('../models/User');
 const userData = require('../data');
 
 const router = express();
@@ -9,16 +10,18 @@ const router = express();
 // Rota que deleta um user pelo ID
 
 // Rota que lista usuarios
-router.get('/users', (request, response) => {
-  const { name = '', email = '' } = request.query;
-  console.log('mudando o texto do log!!!');
-  const filteredUsers = userData.filter((user) => {
-    // logica usando name && logica usando o email
-    return user.name.toLowerCase().includes(name.toLowerCase()) &&
-    user.email.toLowerCase().includes(email.toLowerCase());
-  });
+router.get('/users', async (request, response) => {
+  try {
+    const { name = '', email = '' } = request.query;
   
-  return response.json(filteredUsers);
+    const usersFromDb = await User.find();
+    // find no users do banco.
+    
+    return response.json(usersFromDb);
+  } catch (error) {
+    console.log(error);
+    return response.status(500).json({ error: error.message })
+  }
 }); // registrei uma rota GET '/users' dentro do user-routes;
 
 // Rota que retorna UM usuario pelo ID
