@@ -1,7 +1,6 @@
 const express = require('express');
 
 const User = require('../models/User');
-const userData = require('../data');
 
 const router = express();
 
@@ -14,7 +13,11 @@ router.get('/users', async (request, response) => {
   try {
     const { name = '', email = '' } = request.query;
   
-    const usersFromDb = await User.find();
+    const usersFromDb = await User.find({
+      name: { $regex: new RegExp(name, 'i') },
+      email: { $regex: new RegExp(email, 'i') },
+      active: true,
+    });
     // find no users do banco.
     
     return response.json(usersFromDb);
@@ -25,10 +28,10 @@ router.get('/users', async (request, response) => {
 }); // registrei uma rota GET '/users' dentro do user-routes;
 
 // Rota que retorna UM usuario pelo ID
-router.get('/users/:id', (request, response) => {
+router.get('/users/:id', async (request, response) => {
   const { id } = request.params;
 
-  const foundUser = userData.find((el) => el.id.toString() === id); // find faz um loop no nosso array de users para procurar um user baseado na condição que escrevermos
+  const foundUser = await User.findOne({ _id: id, active: true });
 
   if (!foundUser) {
     return response.status(204).json({});
@@ -37,64 +40,72 @@ router.get('/users/:id', (request, response) => {
   return response.json(foundUser);
 });
 
-router.post('/users', (request, response) => {
-  const { name, email } = request.body;
+router.post('/users', async (request, response) => {
+  const { name, email, password, birthdate } = request.body;
 
   // Validação de campos obrigatórios
-  if (!name || !email) {
-    return response.status(400).json({ message: 'Favor preencher o nome e email do novo usuário' });
+  if (!name || !email || !password) {
+    return response.status(400).json({ message: 'Favor preencher o nome e email e senha do novo usuário' });
   }
 
   // Validação se email informado já está sendo usado
-  const emailExists = userData.some((user) => user.email === email);
-  if (emailExists) {
+  const userFromDb = await User.findOne({ email });
+  console.log(userFromDb);
+  if (userFromDb) {
     return response.status(400).json({ message: 'Email em uso. Favor informar outro' })
   }
 
   // Criar um novo objeto com as infos do novo user e inserir este novo user dentro do array
-  const newUser = {
-    id: new Date().getTime(),
-    name: name,
-    email: email,
-  };
+  const newUserToDb = new User({
+    name,
+    email,
+    password,
+    birthdate,
+  });
 
-  userData.push(newUser); // estamos fazendo de conta que o usuário está sendo salvo no banco
+  await newUserToDb.save() // estamos fazendo de conta que o usuário está sendo salvo no banco
 
-  return response.status(201).json(newUser)
+  return response.status(201).json(newUserToDb)
 }); // rota que vai criar um novo usuario!
 
-router.put('/users/:id', (request, response) => {
+router.put('/users/:id', async (request, response) => {
   const { id } = request.params; // pegar o id do user
-  const { name, email } = request.body; // pegar as infos que serão alteradas
+  const { name, email, password, birthdate } = request.body; // pegar as infos que serão alteradas
 
   // Validação de campos obrigatórios
-  if (!name || !email) {
+  if (!name || !email || !password) {
     return response.status(400).json({ message: 'Favor preencher o nome e email do novo usuário' });
   }
 
-  const foundUser = userData.find((el) => el.id.toString() === id);
-  if (!foundUser) {
+  const infoToUpdate = {
+    name,
+    email,
+    password,
+    birthdate,
+  };
+
+  const updatedUser = await User.findOneAndUpdate({ _id: id, active: true }, infoToUpdate, { new: true });
+
+  if (!updatedUser) {
     return response.status(400).json({ message: `User com id ${id} não encontrado` });
   }
 
-  foundUser.name = name;
-  foundUser.email = email;
-
-  response.json(foundUser);
+  response.json(updatedUser);
 }); // Editar um usuário específico (através do ID)
 
-router.delete('/users/:id', (request, response) => {
+router.delete('/users/:id', async (request, response) => {
   // Buscar o user pelo ID
   // Achar o indice dele dentro do array
   // Faz um splice no indice encontrado
   const { id } = request.params;
 
-  const userIndex = userData.findIndex((user) => user.id.toString() === id);
-  if (userIndex < 0) {
+  const foundUser = await User.findOne({ _id: id, active: true });
+  if (!foundUser) {
     return response.status(400).json({ message: `User com id ${id} não encontrado` })
   }
 
-  userData.splice(userIndex, 1); // Quero deletar 1 usuário a partir do indice encontrado
+  foundUser.active = false;
+  foundUser.save();
 
   response.json({ message: 'User deletado com sucesso' });
 }); // Deletar um user pelo ID

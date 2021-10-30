@@ -2,6 +2,8 @@ const express = require('express');
 
 const usersRoutes = require('./routes/user-routes');
 
+require('./database/mongodb');
+
 const app = express();
 
 // CRIAR UMA API QUE RETORNE INFOS DE USUARIOS E FAÇA UM CRUD!!!
